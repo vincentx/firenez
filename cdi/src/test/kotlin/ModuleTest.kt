@@ -17,7 +17,7 @@ class ModuleTest {
     }
 
     @Test
-    fun should_bind_implement_class_to_type() {
+    fun should_bind_implementation_class_to_type() {
         val module = Module()
 
         module.bind(Component::class.java, Implementation::class.java)
