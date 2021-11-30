@@ -15,8 +15,8 @@ class ModuleTest {
     }
 
     @Test
-    fun should_bind_instance_to_type(){
-        val component = object: Component {}
+    fun `bind a type to a specific instance`() {
+        val component = object : Component {}
 
         module.bind(Component::class.java, component)
 
@@ -24,15 +24,15 @@ class ModuleTest {
     }
 
     @Test
-    fun should_bind_implementation_class_to_type() {
+    fun `bind a type to a specific implementation`() {
         module.bind(Component::class.java, Implementation::class.java)
 
         assertTrue(module.get(Component::class.java) is Implementation)
     }
 
     @Test
-    fun should_inject_dependency_via_constructor() {
-        val component = object: Component {}
+    fun `inject dependency via constructor when retrieving type from implementation`() {
+        val component = object : Component {}
 
         module.bind(Component::class.java, component)
         module.bind(ComponentConsumer::class.java, ConstructorInjectedComponentConsumer::class.java)
@@ -45,10 +45,12 @@ class ModuleTest {
     class Implementation : Component
 
     interface ComponentConsumer {
-        fun component() : Component
+        fun component(): Component
     }
 
-    class ConstructorInjectedComponentConsumer @Inject constructor(private val component: Component): ComponentConsumer {
+    class ConstructorInjectedComponentConsumer @Inject constructor(private val component: Component) :
+        ComponentConsumer {
         override fun component(): Component = component
     }
+
 }
