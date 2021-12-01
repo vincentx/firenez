@@ -36,11 +36,26 @@ class Module {
             throw ConstructorInjectionNotFoundException(componentClass)
         }
 
-        override fun get(): T =
+        override fun get(): T = cyclicDependenciesCheck {
             constructor.newInstance(*constructor.parameters.map { parameter -> get(parameter.type) }
                 .toTypedArray())
+        }
+
+        private var constructing = false
+        private fun cyclicDependenciesCheck(get: () -> T): T {
+            if (constructing) throw CyclicDependenciesFound()
+            try {
+                constructing = true
+                return get()
+            } catch (e: CyclicDependenciesFound) {
+                throw CyclicDependenciesFound(e.components + listOf(componentClass))
+            } finally {
+                constructing = false
+            }
+        }
     }
 }
 
 data class AmbiguousConstructorInjectionException(val componentClass: Class<*>) : RuntimeException()
 data class ConstructorInjectionNotFoundException(val componentClass: Class<*>) : RuntimeException()
+data class CyclicDependenciesFound(val components: List<Class<*>> = listOf()) : RuntimeException()

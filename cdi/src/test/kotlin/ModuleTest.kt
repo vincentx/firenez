@@ -87,8 +87,22 @@ class ModuleTest {
         assertEquals(NoInjectedNorDefaultConstructors::class.java, componentClass)
     }
 
-    interface Component
+    @Test
+    fun `cyclic dependencies between constructor injections not allowed`() {
+        class ConstructorInjectionA @Inject constructor(b: Component)
 
+        class ConstructorInjectionB @Inject constructor(a : ConstructorInjectionA) : Component
+
+        module.bind(ConstructorInjectionA::class.java, ConstructorInjectionA::class.java)
+        module.bind(Component::class.java, ConstructorInjectionB::class.java)
+
+        val (components) = assertThrows<CyclicDependenciesFound> { module.get(ConstructorInjectionA::class.java) }
+        assertEquals(2, components.size)
+        assertContains(components, ConstructorInjectionA::class.java)
+        assertContains(components, ConstructorInjectionB::class.java)
+    }
+
+    interface Component
 
     interface ComponentConsumer {
         fun component(): Component
