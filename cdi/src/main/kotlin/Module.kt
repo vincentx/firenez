@@ -6,25 +6,26 @@ import javax.inject.Provider
 
 @Suppress("UNCHECKED_CAST")
 class Module {
-    private val bindings = HashMap<Class<*>, List<Binding<*>>>()
+    private val bindings = HashMap<Binding<*>, Provider<*>>()
 
-    fun <T> bind(type: Class<T>, instance: T) = bind(type, Binding({ instance }, listOf()))
+    fun <T> bind(type: Class<T>, instance: T) =
+        bind(type, arrayOf()) { instance }
 
     fun <T> bind(type: Class<T>, specific: Class<out T>, vararg qualifiers: Annotation) =
-        bind(type, Binding(CyclicDependencyNotAllowed(ConstructorInjection(specific), specific), listOf(*qualifiers)))
+        bind(type, qualifiers, CyclicDependencyNotAllowed(ConstructorInjection(specific), specific))
 
-    fun <T> get(type: Class<T>, vararg qualifiers: Annotation): T?  {
-        val found = bindings[type]?.filter { it.isQualified(listOf(*qualifiers)) }
-        return if (found?.size == 1) found[0].provider.get() as T else null
+    fun <T> get(type: Class<T>, vararg qualifiers: Annotation): T?  = bindings[Binding(type, listOf(*qualifiers))]?.get() as T
+
+    private fun <T> bind(type: Class<T>, qualifiers: Array<out Annotation>, provider: Provider<T>) {
+        bindings[Binding(type, listOf(*qualifiers))] = provider
     }
 
-    private fun <T> bind(type: Class<T>, binding: Binding<T>) {
-        bindings[type] = (bindings[type] ?: listOf()) + listOf(binding)
-    }
+    private class Binding<T>(val type: Class<T>, val qualifiers: List<Annotation>) {
+        override fun equals(other: Any?) =
+            (other is Binding<*>) && (other.type == type) && (other.qualifiers.size == qualifiers.size)
+                    && (other.qualifiers.containsAll(qualifiers))
 
-    private class Binding<T>(val provider: Provider<T>, val qualifiers: List<Annotation>) {
-        fun isQualified(required: List<Annotation>) =
-            qualifiers.size == required.size && qualifiers.containsAll(required)
+        override fun hashCode() = 31 * type.hashCode() + qualifiers.hashCode()
     }
 
     private inner class ConstructorInjection<T>(private val componentClass: Class<out T>) : Provider<T> {
