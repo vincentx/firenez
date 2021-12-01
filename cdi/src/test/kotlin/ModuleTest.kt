@@ -40,14 +40,26 @@ class ModuleTest {
 
     @Test
     fun `multiple constructors annotated with inject consider ambiguous`() {
-        val exception = assertThrows<AmbiguousConstructorInjection> {
+        val (componentClass) = assertThrows<AmbiguousConstructorInjectionException> {
             module.bind(
                 TwoInjectedConstructors::class.java,
                 TwoInjectedConstructors::class.java
             )
         }
 
-        assertEquals(TwoInjectedConstructors::class.java, exception.componentClass)
+        assertEquals(TwoInjectedConstructors::class.java, componentClass)
+    }
+
+    @Test
+    fun `no constructor annotated with inject nor default constructor considers constructor injection not found`() {
+        val (componentClass) = assertThrows<ConstructorInjectionNotFoundException> {
+            module.bind(
+                NoInjectedNorDefaultConstructors::class.java,
+                NoInjectedNorDefaultConstructors::class.java
+            )
+        }
+
+        assertEquals(NoInjectedNorDefaultConstructors::class.java, componentClass)
     }
 
     interface Component
@@ -69,6 +81,14 @@ class ModuleTest {
         }
 
         @Inject
+        constructor(component: Component, consumer: ComponentConsumer) {
+        }
+    }
+
+    class NoInjectedNorDefaultConstructors {
+        constructor(component: Component) {
+        }
+
         constructor(component: Component, consumer: ComponentConsumer) {
         }
     }

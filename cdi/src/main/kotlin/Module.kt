@@ -24,10 +24,16 @@ class Module {
         private fun injectionConstructor(): Constructor<T> {
             val constructors = componentClass.constructors.filter { it.isAnnotationPresent(Inject::class.java) }
             return when {
-                constructors.size > 1 -> throw AmbiguousConstructorInjection(componentClass)
                 constructors.size == 1 -> constructors.first()!! as Constructor<T>
-                else -> componentClass.getConstructor()
+                constructors.size > 1 -> throw AmbiguousConstructorInjectionException(componentClass)
+                else -> defaultConstructor()
             }
+        }
+
+        private fun defaultConstructor(): Constructor<T> = try {
+            componentClass.getConstructor()
+        } catch (e: NoSuchMethodException) {
+            throw ConstructorInjectionNotFoundException(componentClass)
         }
 
         override fun get(): T =
@@ -36,4 +42,5 @@ class Module {
     }
 }
 
-class AmbiguousConstructorInjection(val componentClass: Class<*>) : RuntimeException()
+data class AmbiguousConstructorInjectionException(val componentClass: Class<*>) : RuntimeException()
+data class ConstructorInjectionNotFoundException(val componentClass: Class<*>) : RuntimeException()
