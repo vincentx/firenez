@@ -2,8 +2,11 @@ package firenze.cdi
 
 import org.junit.jupiter.api.assertThrows
 import javax.inject.Inject
+import javax.inject.Qualifier
+import kotlin.annotation.AnnotationRetention.RUNTIME
 import kotlin.test.*
 
+@Suppress("UNUSED_PARAMETER")
 class ModuleTest {
     lateinit var module: Module
 
@@ -90,7 +93,7 @@ class ModuleTest {
     @Test
     fun `cyclic dependencies between constructor injections not allowed`() {
         class ConstructorInjectionA @Inject constructor(b: Component)
-        class ConstructorInjectionB @Inject constructor(a : ConstructorInjectionA) : Component
+        class ConstructorInjectionB @Inject constructor(a: ConstructorInjectionA) : Component
 
         module.bind(ConstructorInjectionA::class.java, ConstructorInjectionA::class.java)
         module.bind(Component::class.java, ConstructorInjectionB::class.java)
@@ -104,7 +107,7 @@ class ModuleTest {
     @Test
     fun `transitive cyclic constructor injections not allowed`() {
         class ConstructorInjectionA @Inject constructor(b: Component)
-        class ConstructorInjectionB @Inject constructor(c : AnotherComponent) : Component
+        class ConstructorInjectionB @Inject constructor(c: AnotherComponent) : Component
         class ConstructorInjectionC @Inject constructor(a: ConstructorInjectionA) : AnotherComponent
 
         module.bind(ConstructorInjectionA::class.java, ConstructorInjectionA::class.java)
@@ -118,6 +121,34 @@ class ModuleTest {
         assertContains(components, ConstructorInjectionC::class.java)
     }
 
+    @Test
+    fun `can retrieve component by qualifiers`() {
+        @Marker
+        class SpecificComponent : Component
+
+        module.bind(Component::class.java, object : Component {})
+        module.bind(Component::class.java, SpecificComponent::class.java, SpecificComponent::class.java.annotations[0])
+
+        assertFalse(module.get(Component::class.java) is SpecificComponent)
+        assertTrue(module.get(Component::class.java, SpecificComponent::class.java.annotations[0]) is SpecificComponent)
+    }
+
+    @Test @Ignore
+    fun `dependencies of constructor injection can be annotated with qualifier`() {
+        @Marker
+        class SpecificComponent : Component
+
+        class SpecificConsumer @Inject constructor(@Marker val injected: Component) : ComponentConsumer {
+            override fun component(): Component = injected
+        }
+
+        module.bind(Component::class.java, object : Component {})
+        module.bind(Component::class.java, SpecificComponent::class.java)
+        module.bind(ComponentConsumer::class.java, SpecificConsumer::class.java)
+
+        assertTrue(module.get(ComponentConsumer::class.java).component() is SpecificComponent)
+    }
+
     interface Component
 
     interface AnotherComponent
@@ -125,4 +156,9 @@ class ModuleTest {
     interface ComponentConsumer {
         fun component(): Component
     }
+
+    @Qualifier
+    @MustBeDocumented
+    @Retention(RUNTIME)
+    annotation class Marker
 }

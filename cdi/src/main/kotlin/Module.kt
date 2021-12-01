@@ -6,17 +6,24 @@ import javax.inject.Provider
 
 @Suppress("UNCHECKED_CAST")
 class Module {
-    private val components = HashMap<Class<*>, Provider<*>>()
+    private val components = HashMap<Class<*>, List<Binding<*>>>()
 
     fun <T> bind(type: Class<T>, instance: T) {
-        components[type] = Provider { instance }
+        components[type] = (components[type] ?: listOf()) + listOf(Binding({ instance }, listOf()))
     }
 
-    fun <T> bind(type: Class<T>, implementationClass: Class<out T>) {
-        components[type] = CyclicDependencyCheckProvider(implementationClass, ComponentProvider(implementationClass))
+    fun <T> bind(type: Class<T>, implementationClass: Class<out T>, vararg qualifiers: Annotation) {
+        components[type] = (components[type] ?: listOf()) + listOf(Binding(
+            CyclicDependencyCheckProvider(implementationClass, ComponentProvider(implementationClass)), listOf(*qualifiers)))
     }
 
-    fun <T> get(type: Class<T>): T = components[type]!!.get() as T
+    fun <T> get(type: Class<T>, vararg qualifiers: Annotation): T =
+        components[type]!!.first {it.isQualified(listOf(*qualifiers))}.provider.get() as T
+
+    private class Binding<T>(val provider: Provider<T>, val qualifiers: List<Annotation>) {
+        fun isQualified(required: List<Annotation>) =
+            qualifiers.size == required.size && qualifiers.containsAll(required)
+    }
 
     private inner class ComponentProvider<T>(private val componentClass: Class<out T>) : Provider<T> {
         private val constructor = injectionConstructor()
