@@ -6,26 +6,26 @@ import javax.inject.Provider
 
 @Suppress("UNCHECKED_CAST")
 class Module {
-    private val components = HashMap<Class<*>, List<Binding<*>>>()
+    private val bindings = HashMap<Class<*>, List<Binding<*>>>()
 
-    fun <T> bind(type: Class<T>, instance: T) {
-        components[type] = (components[type] ?: listOf()) + listOf(Binding({ instance }, listOf()))
-    }
+    fun <T> bind(type: Class<T>, instance: T) = bind(type, Binding({ instance }, listOf()))
 
-    fun <T> bind(type: Class<T>, implementationClass: Class<out T>, vararg qualifiers: Annotation) {
-        components[type] = (components[type] ?: listOf()) + listOf(Binding(
-            CyclicDependencyCheckProvider(implementationClass, ComponentProvider(implementationClass)), listOf(*qualifiers)))
-    }
+    fun <T> bind(type: Class<T>, specific: Class<out T>, vararg qualifiers: Annotation) =
+        bind(type, Binding(CyclicDependencyNotAllowed(ConstructorInjection(specific), specific), listOf(*qualifiers)))
 
     fun <T> get(type: Class<T>, vararg qualifiers: Annotation): T =
-        components[type]!!.first {it.isQualified(listOf(*qualifiers))}.provider.get() as T
+        bindings[type]!!.first { it.isQualified(listOf(*qualifiers)) }.provider.get() as T
+
+    private fun <T> bind(type: Class<T>, binding: Binding<T>) {
+        bindings[type] = (bindings[type] ?: listOf()) + listOf(binding)
+    }
 
     private class Binding<T>(val provider: Provider<T>, val qualifiers: List<Annotation>) {
         fun isQualified(required: List<Annotation>) =
             qualifiers.size == required.size && qualifiers.containsAll(required)
     }
 
-    private inner class ComponentProvider<T>(private val componentClass: Class<out T>) : Provider<T> {
+    private inner class ConstructorInjection<T>(private val componentClass: Class<out T>) : Provider<T> {
         private val constructor = injectionConstructor()
 
         private fun injectionConstructor(): Constructor<out T> {
@@ -47,9 +47,9 @@ class Module {
             .toTypedArray())
     }
 
-    private inner class CyclicDependencyCheckProvider<T>(
-        private val componentClass: Class<out T>,
-        private val provider: Provider<T>
+    private class CyclicDependencyNotAllowed<T>(
+        private val provider: Provider<T>,
+        private val componentClass: Class<out T>
     ) : Provider<T> {
         private var constructing = false
 
