@@ -98,7 +98,7 @@ class ModuleTest {
         module.bind(ConstructorInjectionA::class.java, ConstructorInjectionA::class.java)
         module.bind(Component::class.java, ConstructorInjectionB::class.java)
 
-        val (components) = assertThrows<CyclicConstructorInjectionDependenciesFound> { module.get(ConstructorInjectionA::class.java) }
+        val (components) = assertThrows<CyclicConstructorInjectionDependenciesFoundException> { module.get(ConstructorInjectionA::class.java) }
         assertEquals(2, components.size)
         assertContains(components, ConstructorInjectionA::class.java)
         assertContains(components, ConstructorInjectionB::class.java)
@@ -114,7 +114,7 @@ class ModuleTest {
         module.bind(Component::class.java, ConstructorInjectionB::class.java)
         module.bind(AnotherComponent::class.java, ConstructorInjectionC::class.java)
 
-        val (components) = assertThrows<CyclicConstructorInjectionDependenciesFound> { module.get(ConstructorInjectionA::class.java) }
+        val (components) = assertThrows<CyclicConstructorInjectionDependenciesFoundException> { module.get(ConstructorInjectionA::class.java) }
         assertEquals(3, components.size)
         assertContains(components, ConstructorInjectionA::class.java)
         assertContains(components, ConstructorInjectionB::class.java)
@@ -140,6 +140,18 @@ class ModuleTest {
 
         module.bind(Component::class.java, object : Component {})
         assertNull(module.get(Component::class.java, SpecificComponent::class.java.annotations[0]))
+    }
+
+    @Test
+    fun `should not allow bind different component with same qualifiers`() {
+        @Marker
+        class SpecificComponent : Component
+
+        module.bind(Component::class.java, SpecificComponent::class.java, SpecificComponent::class.java.annotations[0])
+
+        val (type, qualifiers) = assertThrows<AmbiguousBindingException> { module.bind(Component::class.java, object : Component {}, SpecificComponent::class.java.annotations[0]) }
+        assertEquals(Component::class.java, type)
+        assertEquals(listOf(SpecificComponent::class.java.annotations[0]), qualifiers)
     }
 
     @Test @Ignore

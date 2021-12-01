@@ -8,17 +8,21 @@ import javax.inject.Provider
 class Module {
     private val bindings = HashMap<Binding<*>, Provider<*>>()
 
-    fun <T> bind(type: Class<T>, instance: T) =
-        bind(type, arrayOf()) { instance }
+    fun <T> bind(type: Class<T>, instance: T, vararg qualifiers: Annotation) =
+        bind(type, qualifiers) { instance }
 
     fun <T> bind(type: Class<T>, specific: Class<out T>, vararg qualifiers: Annotation) =
         bind(type, qualifiers, CyclicDependencyNotAllowed(ConstructorInjection(specific), specific))
 
-    fun <T> get(type: Class<T>, vararg qualifiers: Annotation): T?  = bindings[Binding(type, listOf(*qualifiers))]?.get() as T
+    fun <T> get(type: Class<T>, vararg qualifiers: Annotation): T? =
+        bindings[Binding(type, listOf(*qualifiers))]?.get() as T
 
-    private fun <T> bind(type: Class<T>, qualifiers: Array<out Annotation>, provider: Provider<T>) {
-        bindings[Binding(type, listOf(*qualifiers))] = provider
-    }
+    private fun <T> bind(type: Class<T>, qualifiers: Array<out Annotation>, provider: Provider<T>) =
+        noDuplicate(Binding(type, listOf(*qualifiers))) { bindings[it] = provider }
+
+    private fun noDuplicate(binding: Binding<*>, next: (Binding<*>) -> Unit) =
+        if (bindings.containsKey(binding)) throw AmbiguousBindingException(binding.type, binding.qualifiers)
+        else next(binding)
 
     private class Binding<T>(val type: Class<T>, val qualifiers: List<Annotation>) {
         override fun equals(other: Any?) =
@@ -57,12 +61,12 @@ class Module {
         private var constructing = false
 
         override fun get(): T {
-            if (constructing) throw CyclicConstructorInjectionDependenciesFound()
+            if (constructing) throw CyclicConstructorInjectionDependenciesFoundException()
             try {
                 constructing = true
                 return provider.get()
-            } catch (e: CyclicConstructorInjectionDependenciesFound) {
-                throw CyclicConstructorInjectionDependenciesFound(e.components + listOf(componentClass))
+            } catch (e: CyclicConstructorInjectionDependenciesFoundException) {
+                throw CyclicConstructorInjectionDependenciesFoundException(e.components + listOf(componentClass))
             } finally {
                 constructing = false
             }
@@ -72,4 +76,7 @@ class Module {
 
 data class AmbiguousConstructorInjectionException(val componentClass: Class<*>) : RuntimeException()
 data class ConstructorInjectionNotFoundException(val componentClass: Class<*>) : RuntimeException()
-data class CyclicConstructorInjectionDependenciesFound(val components: List<Class<*>> = listOf()) : RuntimeException()
+data class CyclicConstructorInjectionDependenciesFoundException(val components: List<Class<*>> = listOf()) :
+    RuntimeException()
+
+data class AmbiguousBindingException(val type: Class<*>, val qualifiers: List<Annotation>) : RuntimeException()
