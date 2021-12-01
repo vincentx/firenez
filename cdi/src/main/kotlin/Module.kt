@@ -19,13 +19,21 @@ class Module {
     fun <T> get(type: Class<T>): T = components[type]!!.get() as T
 
     private inner class ComponentProvider<T>(private val componentClass: Class<T>) : Provider<T> {
-        override fun get(): T {
-            val constructor = componentClass.constructors.filter { constructor ->
-                constructor.isAnnotationPresent(Inject::class.java) ||
-                        constructor.parameterCount == 0
-            }.first() as Constructor<T>
-            val dependencies = constructor.parameters.map { parameter -> get(parameter.type) }
-            return constructor.newInstance(*dependencies.toTypedArray())
+        private val constructor = injectionConstructor()
+
+        private fun injectionConstructor(): Constructor<T> {
+            val constructors = componentClass.constructors.filter { it.isAnnotationPresent(Inject::class.java) }
+            return when {
+                constructors.size > 1 -> throw AmbiguousConstructorInjection(componentClass)
+                constructors.size == 1 -> constructors.first()!! as Constructor<T>
+                else -> componentClass.getConstructor()
+            }
         }
+
+        override fun get(): T =
+            constructor.newInstance(*constructor.parameters.map { parameter -> get(parameter.type) }
+                .toTypedArray())
     }
 }
+
+class AmbiguousConstructorInjection(val componentClass: Class<*>) : RuntimeException()

@@ -1,10 +1,8 @@
 package firenze.cdi
 
+import org.junit.jupiter.api.assertThrows
 import javax.inject.Inject
-import kotlin.test.BeforeTest
-import kotlin.test.Test
-import kotlin.test.assertSame
-import kotlin.test.assertTrue
+import kotlin.test.*
 
 class ModuleTest {
     lateinit var module: Module
@@ -40,6 +38,18 @@ class ModuleTest {
         assertSame(component, module.get(ComponentConsumer::class.java).component())
     }
 
+    @Test
+    fun `multiple constructors annotated with inject consider ambiguous`() {
+        val exception = assertThrows<AmbiguousConstructorInjection> {
+            module.bind(
+                TwoInjectedConstructors::class.java,
+                TwoInjectedConstructors::class.java
+            )
+        }
+
+        assertEquals(TwoInjectedConstructors::class.java, exception.componentClass)
+    }
+
     interface Component
 
     class Implementation : Component
@@ -53,4 +63,13 @@ class ModuleTest {
         override fun component(): Component = component
     }
 
+    class TwoInjectedConstructors {
+        @Inject
+        constructor(component: Component) {
+        }
+
+        @Inject
+        constructor(component: Component, consumer: ComponentConsumer) {
+        }
+    }
 }
