@@ -45,7 +45,7 @@ class ModuleTest {
         module.bind(Component::class.java, component)
         module.bind(ComponentConsumer::class.java, ConstructorInjectedComponentConsumer::class.java)
 
-        assertSame(component, module.get(ComponentConsumer::class.java).component())
+        assertSame(component, module.get(ComponentConsumer::class.java)?.component())
     }
 
     @Test
@@ -133,6 +133,15 @@ class ModuleTest {
         assertTrue(module.get(Component::class.java, SpecificComponent::class.java.annotations[0]) is SpecificComponent)
     }
 
+    @Test
+    fun `returns null if no qualified component provided`() {
+        @Marker
+        class SpecificComponent : Component
+
+        module.bind(Component::class.java, object : Component {})
+        assertNull(module.get(Component::class.java, SpecificComponent::class.java.annotations[0]))
+    }
+
     @Test @Ignore
     fun `dependencies of constructor injection can be annotated with qualifier`() {
         @Marker
@@ -146,7 +155,7 @@ class ModuleTest {
         module.bind(Component::class.java, SpecificComponent::class.java)
         module.bind(ComponentConsumer::class.java, SpecificConsumer::class.java)
 
-        assertTrue(module.get(ComponentConsumer::class.java).component() is SpecificComponent)
+        assertTrue(module.get(ComponentConsumer::class.java)?.component() is SpecificComponent)
     }
 
     interface Component

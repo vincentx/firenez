@@ -13,8 +13,10 @@ class Module {
     fun <T> bind(type: Class<T>, specific: Class<out T>, vararg qualifiers: Annotation) =
         bind(type, Binding(CyclicDependencyNotAllowed(ConstructorInjection(specific), specific), listOf(*qualifiers)))
 
-    fun <T> get(type: Class<T>, vararg qualifiers: Annotation): T =
-        bindings[type]!!.first { it.isQualified(listOf(*qualifiers)) }.provider.get() as T
+    fun <T> get(type: Class<T>, vararg qualifiers: Annotation): T?  {
+        val found = bindings[type]?.filter { it.isQualified(listOf(*qualifiers)) }
+        return if (found?.size == 1) found[0].provider.get() as T else null
+    }
 
     private fun <T> bind(type: Class<T>, binding: Binding<T>) {
         bindings[type] = (bindings[type] ?: listOf()) + listOf(binding)
