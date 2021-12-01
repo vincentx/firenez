@@ -13,15 +13,15 @@ class Module {
     }
 
     fun <T> bind(type: Class<T>, implementationClass: Class<out T>) {
-        components[type] = ComponentProvider(implementationClass)
+        components[type] = CyclicDependencyCheckProvider(implementationClass, ComponentProvider(implementationClass))
     }
 
     fun <T> get(type: Class<T>): T = components[type]!!.get() as T
 
-    private inner class ComponentProvider<T>(private val componentClass: Class<T>) : Provider<T> {
+    private inner class ComponentProvider<T>(private val componentClass: Class<out T>) : Provider<T> {
         private val constructor = injectionConstructor()
 
-        private fun injectionConstructor(): Constructor<T> {
+        private fun injectionConstructor(): Constructor<out T> {
             val constructors = componentClass.constructors.filter { it.isAnnotationPresent(Inject::class.java) }
             return when {
                 constructors.size == 1 -> constructors.first()!! as Constructor<T>
@@ -30,23 +30,27 @@ class Module {
             }
         }
 
-        private fun defaultConstructor(): Constructor<T> = try {
+        private fun defaultConstructor(): Constructor<out T> = try {
             componentClass.getConstructor()
         } catch (e: NoSuchMethodException) {
             throw ConstructorInjectionNotFoundException(componentClass)
         }
 
-        override fun get(): T = cyclicDependenciesCheck {
-            constructor.newInstance(*constructor.parameters.map { parameter -> get(parameter.type) }
-                .toTypedArray())
-        }
+        override fun get(): T = constructor.newInstance(*constructor.parameters.map { parameter -> get(parameter.type) }
+            .toTypedArray())
+    }
 
+    private inner class CyclicDependencyCheckProvider<T>(
+        private val componentClass: Class<out T>,
+        private val provider: Provider<T>
+    ) : Provider<T> {
         private var constructing = false
-        private fun cyclicDependenciesCheck(get: () -> T): T {
+
+        override fun get(): T {
             if (constructing) throw CyclicDependenciesFound()
             try {
                 constructing = true
-                return get()
+                return provider.get()
             } catch (e: CyclicDependenciesFound) {
                 throw CyclicDependenciesFound(e.components + listOf(componentClass))
             } finally {
