@@ -47,12 +47,12 @@ class Module {
         private var constructing = false
 
         override fun get(): T {
-            if (constructing) throw CyclicDependenciesFound()
+            if (constructing) throw CyclicConstructorInjectionDependenciesFound()
             try {
                 constructing = true
                 return provider.get()
-            } catch (e: CyclicDependenciesFound) {
-                throw CyclicDependenciesFound(e.components + listOf(componentClass))
+            } catch (e: CyclicConstructorInjectionDependenciesFound) {
+                throw CyclicConstructorInjectionDependenciesFound(e.components + listOf(componentClass))
             } finally {
                 constructing = false
             }
@@ -62,4 +62,4 @@ class Module {
 
 data class AmbiguousConstructorInjectionException(val componentClass: Class<*>) : RuntimeException()
 data class ConstructorInjectionNotFoundException(val componentClass: Class<*>) : RuntimeException()
-data class CyclicDependenciesFound(val components: List<Class<*>> = listOf()) : RuntimeException()
+data class CyclicConstructorInjectionDependenciesFound(val components: List<Class<*>> = listOf()) : RuntimeException()

@@ -90,19 +90,37 @@ class ModuleTest {
     @Test
     fun `cyclic dependencies between constructor injections not allowed`() {
         class ConstructorInjectionA @Inject constructor(b: Component)
-
         class ConstructorInjectionB @Inject constructor(a : ConstructorInjectionA) : Component
 
         module.bind(ConstructorInjectionA::class.java, ConstructorInjectionA::class.java)
         module.bind(Component::class.java, ConstructorInjectionB::class.java)
 
-        val (components) = assertThrows<CyclicDependenciesFound> { module.get(ConstructorInjectionA::class.java) }
+        val (components) = assertThrows<CyclicConstructorInjectionDependenciesFound> { module.get(ConstructorInjectionA::class.java) }
         assertEquals(2, components.size)
         assertContains(components, ConstructorInjectionA::class.java)
         assertContains(components, ConstructorInjectionB::class.java)
     }
 
+    @Test
+    fun `transitive cyclic constructor injections not allowed`() {
+        class ConstructorInjectionA @Inject constructor(b: Component)
+        class ConstructorInjectionB @Inject constructor(c : AnotherComponent) : Component
+        class ConstructorInjectionC @Inject constructor(a: ConstructorInjectionA) : AnotherComponent
+
+        module.bind(ConstructorInjectionA::class.java, ConstructorInjectionA::class.java)
+        module.bind(Component::class.java, ConstructorInjectionB::class.java)
+        module.bind(AnotherComponent::class.java, ConstructorInjectionC::class.java)
+
+        val (components) = assertThrows<CyclicConstructorInjectionDependenciesFound> { module.get(ConstructorInjectionA::class.java) }
+        assertEquals(3, components.size)
+        assertContains(components, ConstructorInjectionA::class.java)
+        assertContains(components, ConstructorInjectionB::class.java)
+        assertContains(components, ConstructorInjectionC::class.java)
+    }
+
     interface Component
+
+    interface AnotherComponent
 
     interface ComponentConsumer {
         fun component(): Component
