@@ -23,6 +23,8 @@ class ModuleTest {
 
     @Test
     fun `bind a type to a specific implementation`() {
+        class Implementation : Component
+
         module.bind(Component::class.java, Implementation::class.java)
 
         assertTrue(module.get(Component::class.java) is Implementation)
@@ -32,6 +34,11 @@ class ModuleTest {
     fun `inject dependency via constructor when retrieving type from implementation`() {
         val component = object : Component {}
 
+        class ConstructorInjectedComponentConsumer @Inject constructor(private val injected: Component) :
+            ComponentConsumer {
+            override fun component(): Component = injected
+        }
+
         module.bind(Component::class.java, component)
         module.bind(ComponentConsumer::class.java, ConstructorInjectedComponentConsumer::class.java)
 
@@ -40,6 +47,16 @@ class ModuleTest {
 
     @Test
     fun `multiple constructors annotated with inject consider ambiguous`() {
+        class TwoInjectedConstructors {
+            @Inject
+            constructor(component: Component) {
+            }
+
+            @Inject
+            constructor(component: Component, consumer: ComponentConsumer) {
+            }
+        }
+
         val (componentClass) = assertThrows<AmbiguousConstructorInjectionException> {
             module.bind(
                 TwoInjectedConstructors::class.java,
@@ -52,6 +69,14 @@ class ModuleTest {
 
     @Test
     fun `no constructor annotated with inject nor default constructor considers constructor injection not found`() {
+        class NoInjectedNorDefaultConstructors {
+            constructor(component: Component) {
+            }
+
+            constructor(component: Component, consumer: ComponentConsumer) {
+            }
+        }
+
         val (componentClass) = assertThrows<ConstructorInjectionNotFoundException> {
             module.bind(
                 NoInjectedNorDefaultConstructors::class.java,
@@ -64,32 +89,8 @@ class ModuleTest {
 
     interface Component
 
-    class Implementation : Component
 
     interface ComponentConsumer {
         fun component(): Component
-    }
-
-    class ConstructorInjectedComponentConsumer @Inject constructor(private val component: Component) :
-        ComponentConsumer {
-        override fun component(): Component = component
-    }
-
-    class TwoInjectedConstructors {
-        @Inject
-        constructor(component: Component) {
-        }
-
-        @Inject
-        constructor(component: Component, consumer: ComponentConsumer) {
-        }
-    }
-
-    class NoInjectedNorDefaultConstructors {
-        constructor(component: Component) {
-        }
-
-        constructor(component: Component, consumer: ComponentConsumer) {
-        }
     }
 }
