@@ -14,7 +14,7 @@ class Module {
         bind(type, qualifiers) { instance }
 
     fun <T> bind(type: Class<T>, specific: Class<out T>, vararg qualifiers: Annotation) =
-        bind(type, qualifiers, CyclicDependencyNotAllowed(ConstructorInjection(specific), specific))
+        bind(type, qualifiers, ConstructorInjection(specific))
 
     fun <T> get(type: Class<T>, vararg qualifiers: Annotation): T? =
         bindings[Binding(type, listOf(*qualifiers))]?.get() as T
@@ -37,8 +37,10 @@ class Module {
         override fun hashCode() = 31 * type.hashCode() + qualifiers.hashCode()
     }
 
-    private inner class ConstructorInjection<T>(private val componentClass: Class<out T>) : Provider<T> {
+    private inner class ConstructorInjection<T>(componentClass: Class<out T>) : CyclicDependencyNotAllowed<T>(componentClass) {
         private val constructor = injectionConstructor()
+
+        override fun create(): T = constructor.newInstance(*constructor.parameters.map(::toDependency).toTypedArray())
 
         private fun injectionConstructor(): Constructor<out T> {
             val constructors = componentClass.constructors.filter { it.isAnnotationPresent(Inject::class.java) }
@@ -55,29 +57,26 @@ class Module {
             throw ConstructorInjectionNotFoundException(componentClass)
         }
 
-        override fun get(): T = constructor.newInstance(*constructor.parameters.map(::toDependency).toTypedArray())
-
         private fun toDependency(parameter: Parameter) =
             get(parameter.type, *parameter.annotations.filter(::isQualifier).toTypedArray())
     }
 
-    private class CyclicDependencyNotAllowed<T>(
-        private val provider: Provider<T>,
-        private val componentClass: Class<out T>
-    ) : Provider<T> {
+    private abstract class CyclicDependencyNotAllowed<T>(protected val componentClass: Class<out T>) : Provider<T> {
         private var constructing = false
 
         override fun get(): T {
             if (constructing) throw CyclicConstructorInjectionDependenciesFoundException()
             try {
                 constructing = true
-                return provider.get()
+                return create()
             } catch (e: CyclicConstructorInjectionDependenciesFoundException) {
                 throw CyclicConstructorInjectionDependenciesFoundException(e.components + listOf(componentClass))
             } finally {
                 constructing = false
             }
         }
+
+        protected abstract fun create() : T
     }
 }
 
