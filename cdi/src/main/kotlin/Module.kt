@@ -2,6 +2,7 @@ package firenze.cdi
 
 import java.lang.reflect.Constructor
 import java.lang.reflect.Parameter
+import java.lang.reflect.ParameterizedType
 import javax.inject.*
 
 @Suppress("UNCHECKED_CAST")
@@ -21,6 +22,9 @@ class Module {
 
     fun <T> get(type: Class<T>, vararg qualifiers: Annotation): T? =
         bindings[Binding(type, listOf(*qualifiers))]?.get() as T
+
+    private fun getProvider(type: Class<*>, vararg qualifiers: Annotation): Provider<*>? = 
+        bindings[Binding(type, listOf(*qualifiers))]
 
     fun scope(type: Class<out Annotation>, handler: (Annotation, Provider<*>) -> Provider<*>) {
         scopeHandlers[type] = handler
@@ -74,8 +78,15 @@ class Module {
         }
 
         private fun toDependency(parameter: Parameter) =
-            get(parameter.type, *parameter.annotations.filter(::isQualifier).toTypedArray()) ?:
-                throw UnsatisfiedDependencyException(parameter.type, parameter.annotations.filter(::isQualifier))
+            when (parameter.type) {
+                Provider::class.java -> getProvider(providerType(parameter), *qualifiers(parameter).toTypedArray())
+                else -> get(parameter.type, *qualifiers(parameter).toTypedArray())
+            } ?: throw UnsatisfiedDependencyException(parameter.type, parameter.annotations.filter(::isQualifier))
+
+        private fun providerType(parameter: Parameter) =
+            (parameter.parameterizedType as ParameterizedType).actualTypeArguments[0] as Class<*>
+
+        private fun qualifiers(parameter: Parameter) = parameter.annotations.filter(::isQualifier)
     }
 
     private abstract class CyclicDependencyNotAllowed<T>(protected val componentClass: Class<out T>) : Provider<T> {

@@ -1,6 +1,7 @@
 package firenze.cdi
 
 import org.junit.jupiter.api.assertThrows
+import java.lang.reflect.ParameterizedType
 import javax.inject.*
 import kotlin.annotation.AnnotationRetention.RUNTIME
 import kotlin.test.*
@@ -291,7 +292,7 @@ class ModuleTest {
         assertSame(Component::class.java, type)
     }
 
-    @Test@Ignore
+    @Test
     fun `should get dependency via provider`() {
         val component = object : Component {}
 
