@@ -20,11 +20,14 @@ class Module {
         bindings[Binding(type, listOf(*qualifiers))]?.get() as T
 
     private fun <T> bind(type: Class<T>, qualifiers: Array<out Annotation>, provider: Provider<T>) =
-        noDuplicate(Binding(type, listOf(*qualifiers))) { bindings[it] = provider }
+        noDuplicate(Binding(type, listOf(*qualifiers).filter(::isQualifier))) { bindings[it] = provider }
 
     private fun noDuplicate(binding: Binding<*>, next: (Binding<*>) -> Unit) =
         if (bindings.containsKey(binding)) throw AmbiguousBindingException(binding.type, binding.qualifiers)
         else next(binding)
+
+    private fun isQualifier(annotation: Annotation) =
+        annotation.annotationClass.annotations.any { it.annotationClass.java == Qualifier::class.java }
 
     private class Binding<T>(val type: Class<T>, val qualifiers: List<Annotation>) {
         override fun equals(other: Any?) =
@@ -56,9 +59,6 @@ class Module {
 
         private fun toDependency(parameter: Parameter) =
             get(parameter.type, *parameter.annotations.filter(::isQualifier).toTypedArray())
-
-        private fun isQualifier(annotation: Annotation) =
-            annotation.annotationClass.annotations.any { it.annotationClass.java == Qualifier::class.java }
     }
 
     private class CyclicDependencyNotAllowed<T>(
@@ -83,7 +83,5 @@ class Module {
 
 data class AmbiguousConstructorInjectionException(val componentClass: Class<*>) : RuntimeException()
 data class ConstructorInjectionNotFoundException(val componentClass: Class<*>) : RuntimeException()
-data class CyclicConstructorInjectionDependenciesFoundException(val components: List<Class<*>> = listOf()) :
-    RuntimeException()
-
+data class CyclicConstructorInjectionDependenciesFoundException(val components: List<Class<*>> = listOf()) : RuntimeException()
 data class AmbiguousBindingException(val type: Class<*>, val qualifiers: List<Annotation>) : RuntimeException()

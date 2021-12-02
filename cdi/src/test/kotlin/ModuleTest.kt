@@ -170,6 +170,23 @@ class ModuleTest {
         assertTrue(module.get(ComponentConsumer::class.java)?.component() is SpecificComponent)
     }
 
+    @Test
+    fun `should ignore non qualifier annotation for specific class`() {
+        @Marker
+        class SpecificComponent : Component
+
+        @Marker @NotQualifier
+        class AnotherSpecificComponent : Component
+
+        module.bind(Component::class.java, SpecificComponent::class.java, *SpecificComponent::class.java.annotations)
+
+        val (component, annotations) = assertThrows<AmbiguousBindingException> { module.bind(Component::class.java, AnotherSpecificComponent::class.java, *AnotherSpecificComponent::class.java.annotations) }
+
+        assertSame(Component::class.java, component)
+        assertEquals(1, annotations.size)
+        assertContains(annotations, SpecificComponent::class.java.annotations[0])
+    }
+
     interface Component
 
     interface AnotherComponent
@@ -182,4 +199,8 @@ class ModuleTest {
     @MustBeDocumented
     @Retention(RUNTIME)
     annotation class Marker
+
+    @MustBeDocumented
+    @Retention(RUNTIME)
+    annotation class NotQualifier
 }
