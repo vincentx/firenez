@@ -154,7 +154,7 @@ class ModuleTest {
         assertEquals(listOf(SpecificComponent::class.java.annotations[0]), qualifiers)
     }
 
-    @Test @Ignore
+    @Test
     fun `dependencies of constructor injection can be annotated with qualifier`() {
         @Marker
         class SpecificComponent : Component
@@ -164,7 +164,7 @@ class ModuleTest {
         }
 
         module.bind(Component::class.java, object : Component {})
-        module.bind(Component::class.java, SpecificComponent::class.java)
+        module.bind(Component::class.java, SpecificComponent::class.java, SpecificComponent::class.java.annotations[0])
         module.bind(ComponentConsumer::class.java, SpecificConsumer::class.java)
 
         assertTrue(module.get(ComponentConsumer::class.java)?.component() is SpecificComponent)

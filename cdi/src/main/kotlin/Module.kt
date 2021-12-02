@@ -1,8 +1,10 @@
 package firenze.cdi
 
 import java.lang.reflect.Constructor
+import java.lang.reflect.Parameter
 import javax.inject.Inject
 import javax.inject.Provider
+import javax.inject.Qualifier
 
 @Suppress("UNCHECKED_CAST")
 class Module {
@@ -38,7 +40,7 @@ class Module {
         private fun injectionConstructor(): Constructor<out T> {
             val constructors = componentClass.constructors.filter { it.isAnnotationPresent(Inject::class.java) }
             return when {
-                constructors.size == 1 -> constructors.first()!! as Constructor<T>
+                constructors.size == 1 -> constructors[0] as Constructor<T>
                 constructors.size > 1 -> throw AmbiguousConstructorInjectionException(componentClass)
                 else -> defaultConstructor()
             }
@@ -50,8 +52,13 @@ class Module {
             throw ConstructorInjectionNotFoundException(componentClass)
         }
 
-        override fun get(): T = constructor.newInstance(*constructor.parameters.map { parameter -> get(parameter.type) }
-            .toTypedArray())
+        override fun get(): T = constructor.newInstance(*constructor.parameters.map(::toDependency).toTypedArray())
+
+        private fun toDependency(parameter: Parameter) =
+            get(parameter.type, *parameter.annotations.filter(::isQualifier).toTypedArray())
+
+        private fun isQualifier(annotation: Annotation) =
+            annotation.annotationClass.annotations.any { it.annotationClass.java == Qualifier::class.java }
     }
 
     private class CyclicDependencyNotAllowed<T>(
