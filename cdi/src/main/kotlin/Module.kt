@@ -2,9 +2,7 @@ package firenze.cdi
 
 import java.lang.reflect.Constructor
 import java.lang.reflect.Parameter
-import javax.inject.Inject
-import javax.inject.Provider
-import javax.inject.Qualifier
+import javax.inject.*
 
 @Suppress("UNCHECKED_CAST")
 class Module {
@@ -14,13 +12,18 @@ class Module {
         bind(type, qualifiers) { instance }
 
     fun <T> bind(type: Class<T>, specific: Class<out T>, vararg qualifiers: Annotation) =
-        bind(type, qualifiers, ConstructorInjection(specific))
+        bind(type, qualifiers, instantiationProvider(specific))
 
     fun <T> get(type: Class<T>, vararg qualifiers: Annotation): T? =
         bindings[Binding(type, listOf(*qualifiers))]?.get() as T
 
     private fun <T> bind(type: Class<T>, qualifiers: Array<out Annotation>, provider: Provider<T>) =
         noDuplicate(Binding(type, listOf(*qualifiers).filter(::isQualifier))) { bindings[it] = provider }
+
+    private fun <T> instantiationProvider(specific: Class<out T>): Provider<T> {
+        val provider = ConstructorInjection(specific)
+        return if (specific.isAnnotationPresent(Singleton::class.java)) SingletonProvider(provider) else provider
+    }
 
     private fun noDuplicate(binding: Binding<*>, next: (Binding<*>) -> Unit) =
         if (bindings.containsKey(binding)) throw AmbiguousBindingException(binding.type, binding.qualifiers)
@@ -37,7 +40,8 @@ class Module {
         override fun hashCode() = 31 * type.hashCode() + qualifiers.hashCode()
     }
 
-    private inner class ConstructorInjection<T>(componentClass: Class<out T>) : CyclicDependencyNotAllowed<T>(componentClass) {
+    private inner class ConstructorInjection<T>(componentClass: Class<out T>) :
+        CyclicDependencyNotAllowed<T>(componentClass) {
         private val constructor = injectionConstructor()
 
         override fun create(): T = constructor.newInstance(*constructor.parameters.map(::toDependency).toTypedArray())
@@ -76,11 +80,23 @@ class Module {
             }
         }
 
-        protected abstract fun create() : T
+        protected abstract fun create(): T
+    }
+
+    private class SingletonProvider<T>(private val provider: Provider<T>) : Provider<T> {
+        private var singleton: T? = null
+
+        override fun get(): T {
+            if (singleton == null)
+                singleton = provider.get()
+            return singleton!!
+        }
     }
 }
 
 data class AmbiguousConstructorInjectionException(val componentClass: Class<*>) : RuntimeException()
 data class ConstructorInjectionNotFoundException(val componentClass: Class<*>) : RuntimeException()
-data class CyclicConstructorInjectionDependenciesFoundException(val components: List<Class<*>> = listOf()) : RuntimeException()
+data class CyclicConstructorInjectionDependenciesFoundException(val components: List<Class<*>> = listOf()) :
+    RuntimeException()
+
 data class AmbiguousBindingException(val type: Class<*>, val qualifiers: List<Annotation>) : RuntimeException()

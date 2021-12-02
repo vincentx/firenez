@@ -214,6 +214,16 @@ class ModuleTest {
         assertNotSame(module.get(Component::class.java), module.get(Component::class.java))
     }
 
+    @Test
+    fun `should not create new instance for singleton component`() {
+        @Singleton
+        class SpecificComponent : Component
+
+        module.bind(Component::class.java, SpecificComponent::class.java)
+
+        assertSame(module.get(Component::class.java), module.get(Component::class.java))
+    }
+
     interface Component
 
     interface AnotherComponent
