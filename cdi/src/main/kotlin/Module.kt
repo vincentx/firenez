@@ -74,14 +74,15 @@ class Module {
         }
 
         private fun toDependency(parameter: Parameter) =
-            get(parameter.type, *parameter.annotations.filter(::isQualifier).toTypedArray())
+            get(parameter.type, *parameter.annotations.filter(::isQualifier).toTypedArray()) ?:
+                throw UnsatisfiedDependencyException(parameter.type, parameter.annotations.filter(::isQualifier))
     }
 
     private abstract class CyclicDependencyNotAllowed<T>(protected val componentClass: Class<out T>) : Provider<T> {
         private var constructing = false
 
         override fun get(): T {
-            if (constructing) throw CyclicConstructorInjectionDependenciesFoundException()
+            if (constructing) throw CyclicConstructorInjectionDependenciesFoundException(listOf())
             try {
                 constructing = true
                 return create()
@@ -108,7 +109,6 @@ class Module {
 
 data class AmbiguousConstructorInjectionException(val componentClass: Class<*>) : RuntimeException()
 data class ConstructorInjectionNotFoundException(val componentClass: Class<*>) : RuntimeException()
-data class CyclicConstructorInjectionDependenciesFoundException(val components: List<Class<*>> = listOf()) :
-    RuntimeException()
-
+data class CyclicConstructorInjectionDependenciesFoundException(val components: List<Class<*>>) : RuntimeException()
 data class AmbiguousBindingException(val type: Class<*>, val qualifiers: List<Annotation>) : RuntimeException()
+data class UnsatisfiedDependencyException(val type: Class<*>, val qualifiers: List<Annotation>) : RuntimeException()

@@ -3,7 +3,6 @@ package firenze.cdi
 import org.junit.jupiter.api.assertThrows
 import javax.inject.*
 import kotlin.annotation.AnnotationRetention.RUNTIME
-import kotlin.random.Random
 import kotlin.test.*
 
 @Suppress("UNUSED_PARAMETER")
@@ -253,16 +252,16 @@ class ModuleTest {
 
     @Test
     fun `should register handler for customize scope annotation`() {
-        @Flyweight(2)
+        @Pooled(2)
         class SpecificComponent : Component
 
-        module.scope(Flyweight::class.java) { annotation: Annotation, provider: Provider<*> ->
-            val flyweight = annotation as Flyweight
+        module.scope(Pooled::class.java) { annotation: Annotation, provider: Provider<*> ->
+            val pooled = annotation as Pooled
             return@scope object : Provider<Any> {
                 private var pool = listOf<Any>()
                 private var index = -1
                 override fun get(): Any {
-                    if (pool.size < flyweight.value)
+                    if (pool.size < pooled.value)
                         pool += provider.get()
                     index = (index + 1) % pool.size
                     return pool[index]
@@ -277,6 +276,33 @@ class ModuleTest {
         assertNotSame(flyweights[0], flyweights[1])
         assertContains(flyweights, module.get(Component::class.java))
         assertContains(flyweights, module.get(Component::class.java))
+    }
+
+
+    @Test
+    fun `should throw unsatisfied dependencies if no dependency found`() {
+        class Consumer @Inject constructor(val component: Component) : ComponentConsumer {
+            override fun component(): Component = component
+        }
+
+        module.bind(ComponentConsumer::class.java, Consumer::class.java)
+
+        val (type, _) = assertThrows<UnsatisfiedDependencyException> { module.get(ComponentConsumer::class.java) }
+        assertSame(Component::class.java, type)
+    }
+
+    @Test@Ignore
+    fun `should get dependency via provider`() {
+        val component = object : Component {}
+
+        class Consumer @Inject constructor(val provider: Provider<Component>) : ComponentConsumer {
+            override fun component(): Component = provider.get()
+        }
+
+        module.bind(Component::class.java, component)
+        module.bind(ComponentConsumer::class.java, Consumer::class.java)
+
+        assertSame(component, module.get(ComponentConsumer::class.java)?.component())
     }
 
     interface Component
@@ -299,5 +325,5 @@ class ModuleTest {
     @Scope
     @MustBeDocumented
     @Retention(RUNTIME)
-    annotation class Flyweight(val value: Int)
+    annotation class Pooled(val value: Int)
 }
