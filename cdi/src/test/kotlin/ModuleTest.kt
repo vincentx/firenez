@@ -3,6 +3,7 @@ package firenze.cdi
 import org.junit.jupiter.api.assertThrows
 import javax.inject.Inject
 import javax.inject.Qualifier
+import javax.inject.Singleton
 import kotlin.annotation.AnnotationRetention.RUNTIME
 import kotlin.test.*
 
@@ -202,6 +203,15 @@ class ModuleTest {
         assertSame(Component::class.java, component)
         assertEquals(1, annotations.size)
         assertContains(annotations, SpecificComponent::class.java.annotations[0])
+    }
+
+    @Test
+    fun `should create new instance for specific component every time retrieving it`() {
+        class SpecificComponent : Component
+
+        module.bind(Component::class.java, SpecificComponent::class.java)
+
+        assertNotSame(module.get(Component::class.java), module.get(Component::class.java))
     }
 
     interface Component
