@@ -7,23 +7,32 @@ import javax.inject.*
 @Suppress("UNCHECKED_CAST")
 class Module {
     private val bindings = HashMap<Binding<*>, Provider<*>>()
+    private val scopeHandlers = HashMap<Class<*>, (Annotation, Provider<*>) -> Provider<*>>()
+
+    init {
+        scope(Singleton::class.java) { _, provider -> SingletonProvider(provider) }
+    }
 
     fun <T> bind(type: Class<T>, instance: T, vararg qualifiers: Annotation) =
         bind(type, qualifiers) { instance }
 
     fun <T> bind(type: Class<T>, specific: Class<out T>, vararg qualifiers: Annotation) =
-        bind(type, qualifiers, instantiationProvider(specific))
+        bind(type, qualifiers, instantiationProvider(specific) as Provider<T>)
 
     fun <T> get(type: Class<T>, vararg qualifiers: Annotation): T? =
         bindings[Binding(type, listOf(*qualifiers))]?.get() as T
 
+    fun scope(type: Class<out Annotation>, handler: (Annotation, Provider<*>) -> Provider<*>) {
+        scopeHandlers[type] = handler
+    }
+
     private fun <T> bind(type: Class<T>, qualifiers: Array<out Annotation>, provider: Provider<T>) =
         noDuplicate(Binding(type, listOf(*qualifiers).filter(::isQualifier))) { bindings[it] = provider }
 
-    private fun <T> instantiationProvider(specific: Class<out T>): Provider<T> {
-        val provider = ConstructorInjection(specific)
-        return if (specific.isAnnotationPresent(Singleton::class.java)) SingletonProvider(provider) else provider
-    }
+    private fun <T> instantiationProvider(specific: Class<out T>): Provider<*> =
+        specific.annotations.filter(::isScope).fold(ConstructorInjection(specific)) { provider, scope ->
+            return (scopeHandlers[scope.annotationClass.java]!!)(scope, provider)
+        }
 
     private fun noDuplicate(binding: Binding<*>, next: (Binding<*>) -> Unit) =
         if (bindings.containsKey(binding)) throw AmbiguousBindingException(binding.type, binding.qualifiers)
@@ -31,6 +40,9 @@ class Module {
 
     private fun isQualifier(annotation: Annotation) =
         annotation.annotationClass.annotations.any { it.annotationClass.java == Qualifier::class.java }
+
+    private fun isScope(annotation: Annotation) =
+        annotation.annotationClass.annotations.any { it.annotationClass.java == Scope::class.java }
 
     private class Binding<T>(val type: Class<T>, val qualifiers: List<Annotation>) {
         override fun equals(other: Any?) =

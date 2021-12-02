@@ -1,15 +1,14 @@
 package firenze.cdi
 
 import org.junit.jupiter.api.assertThrows
-import javax.inject.Inject
-import javax.inject.Qualifier
-import javax.inject.Singleton
+import javax.inject.*
 import kotlin.annotation.AnnotationRetention.RUNTIME
+import kotlin.random.Random
 import kotlin.test.*
 
 @Suppress("UNUSED_PARAMETER")
 class ModuleTest {
-    lateinit var module: Module
+    private lateinit var module: Module
 
     @BeforeTest
     fun before() {
@@ -99,7 +98,11 @@ class ModuleTest {
         module.bind(ConstructorInjectionA::class.java, ConstructorInjectionA::class.java)
         module.bind(Component::class.java, ConstructorInjectionB::class.java)
 
-        val (components) = assertThrows<CyclicConstructorInjectionDependenciesFoundException> { module.get(ConstructorInjectionA::class.java) }
+        val (components) = assertThrows<CyclicConstructorInjectionDependenciesFoundException> {
+            module.get(
+                ConstructorInjectionA::class.java
+            )
+        }
         assertEquals(2, components.size)
         assertContains(components, ConstructorInjectionA::class.java)
         assertContains(components, ConstructorInjectionB::class.java)
@@ -115,7 +118,11 @@ class ModuleTest {
         module.bind(Component::class.java, ConstructorInjectionB::class.java)
         module.bind(AnotherComponent::class.java, ConstructorInjectionC::class.java)
 
-        val (components) = assertThrows<CyclicConstructorInjectionDependenciesFoundException> { module.get(ConstructorInjectionA::class.java) }
+        val (components) = assertThrows<CyclicConstructorInjectionDependenciesFoundException> {
+            module.get(
+                ConstructorInjectionA::class.java
+            )
+        }
         assertEquals(3, components.size)
         assertContains(components, ConstructorInjectionA::class.java)
         assertContains(components, ConstructorInjectionB::class.java)
@@ -150,7 +157,13 @@ class ModuleTest {
 
         module.bind(Component::class.java, SpecificComponent::class.java, SpecificComponent::class.java.annotations[0])
 
-        val (type, qualifiers) = assertThrows<AmbiguousBindingException> { module.bind(Component::class.java, object : Component {}, SpecificComponent::class.java.annotations[0]) }
+        val (type, qualifiers) = assertThrows<AmbiguousBindingException> {
+            module.bind(
+                Component::class.java,
+                object : Component {},
+                SpecificComponent::class.java.annotations[0]
+            )
+        }
         assertEquals(Component::class.java, type)
         assertEquals(listOf(SpecificComponent::class.java.annotations[0]), qualifiers)
     }
@@ -176,12 +189,19 @@ class ModuleTest {
         @Marker
         class SpecificComponent : Component
 
-        @Marker @NotQualifier
+        @Marker
+        @NotQualifier
         class AnotherSpecificComponent : Component
 
         module.bind(Component::class.java, SpecificComponent::class.java, *SpecificComponent::class.java.annotations)
 
-        val (component, annotations) = assertThrows<AmbiguousBindingException> { module.bind(Component::class.java, AnotherSpecificComponent::class.java, *AnotherSpecificComponent::class.java.annotations) }
+        val (component, annotations) = assertThrows<AmbiguousBindingException> {
+            module.bind(
+                Component::class.java,
+                AnotherSpecificComponent::class.java,
+                *AnotherSpecificComponent::class.java.annotations
+            )
+        }
 
         assertSame(Component::class.java, component)
         assertEquals(1, annotations.size)
@@ -193,12 +213,19 @@ class ModuleTest {
         @Marker
         class SpecificComponent : Component
 
-        @Marker @NotQualifier
+        @Marker
+        @NotQualifier
         class AnotherSpecificComponent : Component
 
         module.bind(Component::class.java, object : Component {}, *SpecificComponent::class.java.annotations)
 
-        val (component, annotations) = assertThrows<AmbiguousBindingException> { module.bind(Component::class.java, object : Component {}, *AnotherSpecificComponent::class.java.annotations) }
+        val (component, annotations) = assertThrows<AmbiguousBindingException> {
+            module.bind(
+                Component::class.java,
+                object : Component {},
+                *AnotherSpecificComponent::class.java.annotations
+            )
+        }
 
         assertSame(Component::class.java, component)
         assertEquals(1, annotations.size)
@@ -224,6 +251,34 @@ class ModuleTest {
         assertSame(module.get(Component::class.java), module.get(Component::class.java))
     }
 
+    @Test
+    fun `should register handler for customize scope annotation`() {
+        @Flyweight(2)
+        class SpecificComponent : Component
+
+        module.scope(Flyweight::class.java) { annotation: Annotation, provider: Provider<*> ->
+            val flyweight = annotation as Flyweight
+            return@scope object : Provider<Any> {
+                private var pool = listOf<Any>()
+                private var index = -1
+                override fun get(): Any {
+                    if (pool.size < flyweight.value)
+                        pool += provider.get()
+                    index = (index + 1) % pool.size
+                    return pool[index]
+                }
+            }
+        }
+
+        module.bind(Component::class.java, SpecificComponent::class.java)
+
+        val flyweights = arrayOf(module.get(Component::class.java), module.get(Component::class.java))
+
+        assertNotSame(flyweights[0], flyweights[1])
+        assertContains(flyweights, module.get(Component::class.java))
+        assertContains(flyweights, module.get(Component::class.java))
+    }
+
     interface Component
 
     interface AnotherComponent
@@ -240,4 +295,9 @@ class ModuleTest {
     @MustBeDocumented
     @Retention(RUNTIME)
     annotation class NotQualifier
+
+    @Scope
+    @MustBeDocumented
+    @Retention(RUNTIME)
+    annotation class Flyweight(val value: Int)
 }
